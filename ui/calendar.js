@@ -12,36 +12,37 @@
 	if ( typeof define === "function" && define.amd ) {
 
 		// AMD. Register as an anonymous module.
-		// TODO: Add globalize and $.date?
 		define([
 			"jquery",
+			"globalize",
+			"globalize/date",
+			"./button",
+			"./calendar/date",
 			"./core",
-			"./widget",
-			"./button"
+			"./widget"
 		], factory );
 	} else {
 
 		// Browser globals
-		factory( jQuery );
+		factory( jQuery, Globalize );
 	}
-}(function( $ ) {
+}(function( $, Globalize ) {
 
 return $.widget( "ui.calendar", {
 	version: "@VERSION",
 	options: {
 		buttons: [],
-		dateFormat: { date: "short" },
 
 		// TODO: review
 		eachDay: $.noop,
 
 		labels: {
-			"currentText": "Today",
 			"datePickerRole": "date picker",
 			"nextText": "Next",
 			"prevText": "Prev",
 			"weekHeader": "Wk"
 		},
+		locale: "en",
 		max: null,
 		min: null,
 		numberOfMonths: 1,
@@ -56,7 +57,9 @@ return $.widget( "ui.calendar", {
 		this.id = this.element.uniqueId().attr( "id" );
 		this.labels = this.options.labels;
 
-		this.date = $.date( this.options.value, this.options.dateFormat ).select();
+		this._setLocale( this.options.locale );
+
+		this.date = new $.ui.calendarDate( this.options.value, this.options.locale ).select();
 		this.date.eachDay = this.options.eachDay;
 
 		this._on( this.element, {
@@ -149,6 +152,48 @@ return $.widget( "ui.calendar", {
 			.find( ".ui-state-focus" )
 			.removeClass( "ui-state-focus" );
 		$( "#" + id + " > a" ).addClass( "ui-state-focus" );
+	},
+
+	_setLocale: function( locale ) {
+		var globalize;
+
+		if ( typeof locale === "string" ) {
+			globalize = new Globalize( locale );
+			locale = {
+				format: function( date ) {
+					return globalize.formatDate( date, { date: "short" } );
+				},
+				parse: function( stringDate ) {
+					return globalize.parseDate( stringDate, { date: "short" } );
+				}
+			};
+		}
+
+		if ( !locale.firstDay ) {
+			globalize = globalize || new Globalize( locale._locale );
+			$.extend( locale, {
+				firstDay: globalize.cldr.supplemental.weekData.firstDay(),
+				formatWeekdayShort: function( date ) {
+
+					// Return the short weekday if its length is < 3. Otherwise, its narrow form.
+					var shortWeekday = globalize.formatDate( date, { pattern: "EEEEEE" } );
+					return shortWeekday.length > 3 ?
+						globalize.formatDate( date, { pattern: "EEEEE" } ) :
+						shortWeekday;
+				},
+				formatWeekdayFull: function( date ) {
+					return globalize.formatDate( date, { pattern: "EEEE" } );
+				},
+				formatMonth: function( date ) {
+					return globalize.formatDate( date, { pattern: "MMMM" } );
+				},
+				formatWeekOfYear: function( date ) {
+					return globalize.formatDate( date, { pattern: "w" } );
+				}
+			});
+		}
+
+		this.options.locale = locale;
 	},
 
 	_createCalendar: function() {
@@ -268,13 +313,14 @@ return $.widget( "ui.calendar", {
 
 	_buildGridHeading: function() {
 		var cells = "",
-			i = 0;
+			i = 0,
+			weekdays = this.date.weekdays();
 
 		if ( this.options.showWeek ) {
 			cells += "<th class='ui-calendar-week-col'>" + this.labels.weekHeader + "</th>";
 		}
-		for ( i; i < this.date.weekdays().length; i++ ) {
-			cells += this._buildGridHeaderCell( this.date.weekdays()[i] );
+		for ( i; i < 7; i++ ) {
+			cells += this._buildGridHeaderCell( weekdays[ i ] );
 		}
 
 		return "<thead role='presentation'>" +
@@ -291,8 +337,6 @@ return $.widget( "ui.calendar", {
 	},
 
 	_buildGridBody: function() {
-		// TODO: this.date.days() is not cached, and it has O(n^2) complexity. It is run O(n) times.
-		// So, it equals O(n^3). Not good at all. Caching.
 		var days = this.date.days(),
 			i = 0,
 			rows = "";
@@ -468,10 +512,11 @@ return $.widget( "ui.calendar", {
 	},
 
 	value: function( value ) {
+		var locale = this.options.locale;
 		if ( arguments.length ) {
-			this._setOption( "value", Globalize.parseDate( value, this.options.dateFormat ) );
+			this._setOption( "value", locale.parse( value ) );
 		} else {
-			return Globalize.formatDate( this.option( "value" ), this.options.dateFormat );
+			return locale.format( this.option( "value" ) );
 		}
 	},
 
@@ -552,8 +597,10 @@ return $.widget( "ui.calendar", {
 			this.refresh();
 		}
 
-		if ( key === "dateFormat" ) {
-			this.date.setFormat( value );
+		if ( key === "locale" ) {
+			this._setLocale( value );
+			this.date.setAttributes( this.options.locale );
+			this.refresh();
 		}
 
 		if ( key === "showWeek" ) {

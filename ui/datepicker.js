@@ -14,6 +14,8 @@
 		// AMD. Register as an anonymous module.
 		define([
 			"jquery",
+			"globalize",
+			"globalize/date",
 			"./core",
 			"./widget",
 			"./calendar",
@@ -22,17 +24,20 @@
 	} else {
 
 		// Browser globals
-		factory( jQuery );
+		factory( jQuery, Globalize );
 	}
-}(function( $ ) {
+}(function( $, Globalize ) {
 
 var widget,
-	calendarOptions = [ "buttons", "dateFormat", "disabled", "eachDay", "max", "min", "numberOfMonths", "showWeek" ];
+
+	// FIXME can we make this dynamic?
+	calendarOptions = [ "buttons", "disabled", "locale", "eachDay", "max", "min", "numberOfMonths", "showWeek" ];
 
 widget = $.widget( "ui.datepicker", {
 	version: "@VERSION",
 	options: {
 		appendTo: null,
+		locale: "en",
 		position: {
 			my: "left top",
 			at: "left bottom"
@@ -48,13 +53,17 @@ widget = $.widget( "ui.datepicker", {
 	},
 
 	_create: function() {
+		var globalize;
 		this.suppressExpandOnFocus = false;
 
+		this._setLocale( this.options.locale );
+
+		// FIXME: can we use Date instead?
 		if ( $.type( this.options.max ) === "string" ) {
-			this.options.max = Globalize.parseDate( this.options.max , { pattern: "yyyy-MM-dd" } );
+			this.options.max = globalize.parseDate( this.options.max , { pattern: "yyyy-MM-dd" } );
 		}
 		if ( $.type( this.options.min ) === "string" ) {
-			this.options.min = Globalize.parseDate( this.options.min , { pattern: "yyyy-MM-dd" } );
+			this.options.min = globalize.parseDate( this.options.min , { pattern: "yyyy-MM-dd" } );
 		}
 
 		this._createCalendar();
@@ -265,13 +274,29 @@ widget = $.widget( "ui.datepicker", {
 		});
 	},
 
+	_setLocale: function( locale ) {
+		if ( typeof locale === "string" ) {
+			globalize = new Globalize( locale );
+			locale = {
+				_locale: locale,
+				format: function( date ) {
+					return globalize.formatDate( date, { date: "short" } );
+				},
+				parse: function( stringDate ) {
+					return globalize.parseDate( stringDate, { date: "short" } );
+				}
+			};
+		}
+		this.options.locale = locale;
+	},
+
 	_buildPosition: function() {
 		return $.extend( { of: this.element }, this.options.position );
 	},
 
 	value: function( value ) {
 		if ( arguments.length ) {
-			this.valueAsDate( Globalize.parseDate( value , this.options.dateFormat ) );
+			this.valueAsDate( this.options.locale.parse( value ) );
 		} else {
 			return ( this._getParsedValue() !== null ) ? this.element.val() : null;
 		}
@@ -281,7 +306,7 @@ widget = $.widget( "ui.datepicker", {
 		if ( arguments.length ) {
 			if ( this.calendarInstance._isValid( value ) ) {
 				this.calendarInstance.valueAsDate( value );
-				this.element.val( Globalize.formatDate( value, this.options.dateFormat ) );
+				this.element.val( this.options.locale.format( value ) );
 			}
 		} else {
 			return this._getParsedValue();
@@ -303,7 +328,7 @@ widget = $.widget( "ui.datepicker", {
 	},
 
 	_getParsedValue: function() {
-		return Globalize.parseDate( this.element.val() , this.options.dateFormat );
+		return this.options.locale.parse( this.element.val() );
 	},
 
 	_setOption: function( key, value ) {
@@ -317,7 +342,8 @@ widget = $.widget( "ui.datepicker", {
 			this.calendar.appendTo( this._appendTo() );
 		}
 
-		if ( key === "dateFormat" ) {
+		if ( key === "locale" ) {
+			this._setLocale( value );
 			this.element.val( this.calendarInstance.value() );
 		}
 

@@ -449,13 +449,15 @@ return $.widget("ui.sortable", $.ui.mouse, {
 			var that = this,
 				cur = this.placeholder.offset(),
 				axis = this.options.axis,
+        helper_offset = $(this.helper).offset(),
+        helper_position = $(this.helper).position(),
 				animation = {};
 
 			if ( !axis || axis === "x" ) {
-				animation.left = cur.left - this.offset.parent.left - this.margins.left + (this.offsetParent[0] === document.body ? 0 : this.offsetParent[0].scrollLeft);
+				animation.left = helper_position.left - (helper_offset.left - cur.left);
 			}
 			if ( !axis || axis === "y" ) {
-				animation.top = cur.top - this.offset.parent.top - this.margins.top + (this.offsetParent[0] === document.body ? 0 : this.offsetParent[0].scrollTop);
+				animation.top = helper_position.top - (helper_offset.top - cur.top);
 			}
 			this.reverting = true;
 			$(this.helper).animate( animation, parseInt(this.options.revert, 10) || 500, function() {

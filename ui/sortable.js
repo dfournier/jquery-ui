@@ -445,6 +445,7 @@ return $.widget("ui.sortable", $.ui.mouse, {
 			$.ui.ddmanager.drop(this, event);
 		}
 
+    console.log('revert -> ' + this.options.revert);
 		if(this.options.revert) {
 			var that = this,
 				cur = this.placeholder.offset(),
